@@ -14,15 +14,10 @@ https://medium.com/@mathcube7/two-lines-of-python-to-solve-the-schrödinger-equa
 INFINITY = 100000
 
 class Operator:
-    X = np.linspace(-10,10,1001)
+    x = np.linspace(-10,10,1001)
 
-    def __init__(self, x=None):
-        if x is not None:
-            self.x = x
-        else:
-            self.x = np.array(Operator.X)
-
-        self.m = np.identity(n=len(self.x))
+    def __init__(self):
+        self.matrix = np.identity(n=len(self.x))
 
         self._eigenvalues = None
         self._eigenvectors = None
@@ -31,16 +26,6 @@ class Operator:
     def dx(self):
         """ This is the differential element dx for our x vector"""
         return self.x[1]-self.x[0]
-
-    @property
-    def d_dx(self):
-        """ This is the differential operator d/dx in matrix form """
-        return FinDiff(0, self.dx, 1) # component 0 of the array, dx, first derivative
-
-    @property
-    def d2_dx2(self):
-        """ This is the differential operator d2/dx2 in matrix form """
-        return FinDiff(0, self.dx, 2) # component 0 of the array, dx, second derivative
 
     def eigenstates(self, k=3, which='SR'):
         if self._eigenvalues is None or self._eigenvectors is None:
@@ -51,7 +36,7 @@ class Operator:
     def compute_eigenstates(self, k=3, which='SR'):
         while k > 0:
             try:
-                self._eigenvalues, self._eigenvectors = eigs( self.m , k=k, which=which)
+                self._eigenvalues, self._eigenvectors = eigs( self.matrix , k=k, which=which)
                 break                
             except np.linalg.LinAlgError as err:
                 print(err)
@@ -100,49 +85,39 @@ class Operator:
     #     ax.set_xlim(min(self.x), max(self.x))
     #     plt.show()
 
-
-class Hamiltonian(Operator):
-    def __init__(self, xMin=-10, xMax=10, N=1001):
-        self.x = np.linspace(xMin, xMax, N)
-        self.V = np.zeros((len(self.x),))
-        self._energies = None
-        self._eigenstates = None
+class Potential(Operator):
 
     def set_infinite_well(self, a):
         """ This sets to potential to a infinite well of width a """
-        self.V = np.zeros((len(self.x),))
+        self.matrix = np.zeros((len(self.x),))
 
         for i, x in enumerate(self.x):
             if abs(x) >= abs(a)/2:
-                self.V[i]   = INFINITY
-
-        self.compute_eigenstates()
+                self.matrix[i]   = INFINITY
 
     def set_finite_well(self, a, vo):
         """ This sets to potential to a finite well of width a and depth vo"""
-        self.V = np.zeros((len(self.x),))
+        self.matrix = np.zeros((len(self.x),))
 
         for i, x in enumerate(self.x):
             if abs(x) >= abs(a)/2:
-                self.V[i]   = vo
-
-        self.compute_eigenstates()
+                self.matrix[i]   = vo
 
     def set_harmonic_well(self, omega=0.5):
         """ This sets to potential to a quadratic well of constant V(x) = omega * x^2 """
-        self.V = omega*self.x*self.x
-
-        self.compute_eigenstates()
+        self.matrix = omega*self.x*self.x
 
     def set_harmonic_halfwell(self, omega=0.5):
         """ This sets to potential to a quadratic half-well of constant V(x) = omega * x^2 """
-        self.V = omega*self.x*self.x
+        self.matrix = omega*self.x*self.x
 
         for i, x in enumerate(self.x):
             if x < 0:
-                self.V[i] = INFINITY
+                self.matrix[i] = INFINITY
 
-        self.compute_eigenstates()
+class Hamiltonian(Operator):
+    def __init__(self):
+        self.V = np.zeros((len(self.x),))
 
     def show_eigenstates(self, which=None):
         energies, eigenstates = self.eigenstates()
@@ -182,30 +157,18 @@ class Hamiltonian(Operator):
 
 
 class Wavefunction:
-    def __init__(self, x = None, psi = None, energy = None, label=r"$\psi$"):
-        if x is None:
-            x = np.array([])
+    def __init__(self, psi = None, energy = None, label=r"$\psi$"):
         if psi is None:
             psi = np.array([])
 
         self.label = label
-        self.x = x
         self.psi = psi
+        self.x = Operator.x
 
     @property
     def dx(self):
         """ This is the differential element dx for our x vector"""
         return self.x[1]-self.x[0]
-
-    @property
-    def d_dx(self):
-        """ This is the differential operator d/dx in matrix form """
-        return FinDiff(0, self.dx, 1) # component 0 of the array, dx, first derivative
-
-    @property
-    def d2_dx2(self):
-        """ This is the differential operator d2/dx2 in matrix form """
-        return FinDiff(0, self.dx, 2) # component 0 of the array, dx, second derivative
 
     def normalize(self):
         sum_psi2 = self.norm2()
@@ -220,8 +183,7 @@ class Wavefunction:
         else:
             return False
 
-    def set_to_gaussian(self, x, sigma = 1):
-        self.x = x
+    def set_to_gaussian(self, sigma = 1):
         self.psi = np.exp(-self.x*self.x/sigma/sigma)
 
     def show(self):
@@ -239,17 +201,45 @@ class Wavefunction:
     def add_to_plot(self, axis):
         axis.plot(self.x, np.real(self.psi), label=self.label)
 
-op = Operator()
-print(op.eigenstates())
+
+def d_dx(vector_or_operator):
+    D = FinDiff(0, vector_or_operator.dx, 1)
+    if type(vector_or_operator) == Operator:
+        return D*vector_or_operator.m # component 0 of the array, dx, first derivative
+    elif type(vector_or_operator) == Wavefunction:
+        return D*vector_or_operator.psi # component 0 of the array, dx, first derivative
+    else:
+        raise ValueError("Wrong type")
+
+def d2_dx2(vector_or_operator):
+    """ This is the differential operator d2/dx2 in matrix form """
+    D2 = FinDiff(0, vector_or_operator.dx, 2)
+    if type(vector_or_operator) == Operator:
+        return D2*vector_or_operator.m # component 0 of the array, dx, second derivative
+    elif type(vector_or_operator) == Wavefunction:
+        return D2*vector_or_operator.psi # component 0 of the array, dx, second derivative
+    else:
+        raise ValueError("Wrong type")
+
+# x = np.linspace(-10, 10, 1001)
+# sigma = complex(3)
+# # psi.psi = psi.d2_dx2.matrix(x.shape)*psi.psi
+
+# op = Operator()
+# print(d_dx(op))
+# print(d2_dx2(op))
+
+
+psi = Wavefunction()
+psi.set_to_gaussian(sigma=1)
+psi.normalize()
+psi.psi = d_dx(psi)
+print(psi.psi)
+psi.show()
+
 exit()
 
 
-x = np.linspace(-10, 10, 1001)
-sigma = complex(3)
-psi = Wavefunction()
-psi.set_to_gaussian(x=x, sigma=sigma)
-psi.normalize()
-psi.psi = psi.d2_dx2.matrix(x.shape)*psi.psi
 
 print(psi.is_normalized())
 psi.show()
