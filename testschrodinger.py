@@ -1,33 +1,33 @@
 import unittest
 from schrodinger import *
 
-class TestVector(unittest.TestCase):
 
+class TestWavefunction(unittest.TestCase):
     def test_init(self):
-        self.assertIsNotNone(Vector())
+        self.assertIsNotNone(Wavefunction())
 
     def test_dxDefined(self):
-        v = Vector()
+        v = Wavefunction()
         self.assertIsNotNone(v.dx)
 
     def test_null(self):
-        v = Vector()
+        v = Wavefunction()
         self.assertTrue(v.norm2() == 0)
 
     def test_not_normalized(self):
-        v = Vector()
+        v = Wavefunction()
         self.assertFalse(v.is_normalized())
 
     def test_DxDefined(self):
-        v = Vector()
+        v = Wavefunction()
         result = D_Dx(v)
         self.assertIsNotNone(result)
 
     def test_DxRightType(self):
-        v = Vector()
+        v = Wavefunction()
         result = D_Dx(v)
         self.assertIsNotNone(result)
-        self.assertEqual(type(result), Vector)
+        self.assertEqual(type(result), Wavefunction)
 
         v = Wavefunction()
         result = D_Dx(v)
@@ -35,22 +35,21 @@ class TestVector(unittest.TestCase):
         self.assertEqual(type(result), Wavefunction)
 
     def test_D2_Dx2Defined(self):
-        v = Vector()
+        v = Wavefunction()
         result = D2_Dx2(v)
         self.assertIsNotNone(result)
 
     def test_D2_Dx2RightType(self):
-        v = Vector()
+        v = Wavefunction()
         result = D2_Dx2(v)
         self.assertIsNotNone(result)
-        self.assertEqual(type(result), Vector)
+        self.assertEqual(type(result), Wavefunction)
 
         v = Wavefunction()
         result = D2_Dx2(v)
         self.assertIsNotNone(result)
         self.assertEqual(type(result), Wavefunction)
 
-class TestWavefunction(unittest.TestCase):
     def test_gaussian(self):
         v = Wavefunction.gaussian(sigma=1)
         self.assertTrue(len(v.matrix) > 0)
@@ -95,13 +94,15 @@ class TestHamiltoninan(unittest.TestCase):
     def test_hamiltonian_harmonic(self):
         h = Hamiltonian(Potential.harmonic_well())
         energies, states = h.eigenstates()
-        plt.plot(states)
+        for state in states:
+            plt.plot(state.x, state.matrix)
         plt.show()
 
     def test_infinite_well(self):
         h = Hamiltonian(Potential.infinite_well(a=10))
         energies, states = h.eigenstates()
-        plt.plot(states)
+        for state in states:
+            plt.plot(state.x, state.matrix)
         plt.show()
 
     def test_infinite_well(self):

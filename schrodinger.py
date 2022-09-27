@@ -37,7 +37,7 @@ class Wavefunction:
             raise ValueError("Wavefunction is not normalizable because it is null")
 
     def norm2(self):
-        return spi.trapezoid(np.conj(self.matrix) * self.matrix, x=self.x, dx=self.dx)
+        return spi.trapezoid(np.abs(self.matrix) **2, x=self.x, dx=self.dx)
 
     def is_normalized(self):
         if abs(self.norm2() - 1.0).real < 1e-4:
