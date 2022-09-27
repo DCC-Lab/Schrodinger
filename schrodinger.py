@@ -5,7 +5,6 @@ from scipy.sparse.linalg import eigs
 from findiff import FinDiff
 import matplotlib.pyplot as plt
 import pandas as pd
-import unittest
 
 """ 
 Reference
@@ -79,7 +78,7 @@ class Wavefunction(Vector):
 
     
 class Operator:
-    def __init__(self, matrix=None):
+    def __init__(self, matrix=None, label=""):
         if matrix is None:
             self.matrix = np.identity(n=len(self.x))
         else:
@@ -87,6 +86,7 @@ class Operator:
 
         self._eigenvalues = None
         self._eigenvectors = None
+        self.label = label
 
     @property
     def x(self):
@@ -95,7 +95,7 @@ class Operator:
     @property
     def dx(self):
         """ This is the differential element dx for our x vector"""
-        return Vector.x[1]-Vector.x[0]
+        return self.x[1]-self.x[0]
 
     def eigenstates(self, k=3, which='SR'):
         if self._eigenvalues is None or self._eigenvectors is None:
@@ -177,15 +177,15 @@ class Potential(Operator):
     """ The class describes several potential that we encounter in quantum mechanics.
     It makes use of the default x from Operator.x """
 
-    def __init__(self, v=None):
+    def __init__(self, v=None, label=None):
         if v is None:
             v = np.zeros((len(Vector.x),))
 
         self.v = v
-        super().__init__( diags(self.v) )
+        super().__init__( diags(self.v), label=label )
 
     def add_to_plot(self, axis):
-        axis.plot(self.x, np.real(self.v), label="Potential")
+        axis.plot(self.x, np.real(self.v), label=self.label)
 
     def show(self):
         fig, axis = plt.subplots()
@@ -208,7 +208,7 @@ class Potential(Operator):
             if abs(x) >= abs(a)/2:
                 v[i]   = INFINITY
 
-        return Potential(v)
+        return Potential(v, label="Infinite well")
 
     @classmethod
     def finite_well(cls, a, vo):
@@ -219,7 +219,7 @@ class Potential(Operator):
             if abs(x) >= abs(a)/2:
                 v[i] = vo
 
-        return Potential(v)
+        return Potential(v, label="Finite well of depth $V_o = {0}$".format(vo))
 
     @classmethod
     def harmonic_well(cls, omega=0.5):
@@ -227,7 +227,7 @@ class Potential(Operator):
         x = Vector.x
         v = omega*x*x
 
-        return Potential(v)
+        return Potential(v, label="Harmonic well")
 
     @classmethod
     def harmonic_halfwell(cls, omega=0.5):
@@ -238,7 +238,19 @@ class Potential(Operator):
             if x < 0:
                 v[i] = INFINITY
 
-        return Potential(v)
+        return Potential(v, label="Harmonic half-well")
+
+    @classmethod
+    def delta_barrier(cls):
+        """ This sets to potential to a quadratic half-well of constant V(x) = omega * x^2 """
+        v = np.zeros((len(Vector.x),))
+
+        for i, x in enumerate(Vector.x):
+            if x >= 0:
+                v[i] = INFINITY
+                break
+
+        return Potential(v, label="Delta barrier")
 
 class Hamiltonian(Operator):
     def __init__(self, potential=None):
@@ -250,145 +262,3 @@ class Hamiltonian(Operator):
 
         self.matrix = ( -0.5 * D2_Dx2().matrix + self.V.matrix )
 
-
-class TestVector(unittest.TestCase):
-
-    def test_init(self):
-        self.assertIsNotNone(Vector())
-
-    def test_dxDefined(self):
-        v = Vector()
-        self.assertIsNotNone(v.dx)
-
-    def test_null(self):
-        v = Vector()
-        self.assertTrue(v.norm2() == 0)
-
-    def test_not_normalized(self):
-        v = Vector()
-        self.assertFalse(v.is_normalized())
-
-    def test_DxDefined(self):
-        v = Vector()
-        result = D_Dx(v)
-        self.assertIsNotNone(result)
-
-    def test_DxRightType(self):
-        v = Vector()
-        result = D_Dx(v)
-        self.assertIsNotNone(result)
-        self.assertEqual(type(result), Vector)
-
-        v = Wavefunction()
-        result = D_Dx(v)
-        self.assertIsNotNone(result)
-        self.assertEqual(type(result), Wavefunction)
-
-    def test_D2_Dx2Defined(self):
-        v = Vector()
-        result = D2_Dx2(v)
-        self.assertIsNotNone(result)
-
-    def test_D2_Dx2RightType(self):
-        v = Vector()
-        result = D2_Dx2(v)
-        self.assertIsNotNone(result)
-        self.assertEqual(type(result), Vector)
-
-        v = Wavefunction()
-        result = D2_Dx2(v)
-        self.assertIsNotNone(result)
-        self.assertEqual(type(result), Wavefunction)
-
-class TestWavefunction(unittest.TestCase):
-    def test_gaussian(self):
-        v = Wavefunction.gaussian(sigma=1)
-        self.assertTrue(len(v.matrix) > 0)
-        self.assertEqual(len(v.matrix), len(v.x))
-
-    def test_gaussian_normalize(self):
-        v = Wavefunction.gaussian(sigma=1)
-        v.normalize()
-        self.assertEqual(v.norm2(), 1)
-
-    def test_gaussian_show(self):
-        v = Wavefunction.gaussian(sigma=1)
-        v.show()
-
-    def test_derivative_gaussian_show(self):
-        v = Wavefunction.gaussian(sigma=1)
-        v2 = D_Dx(v)
-        v2.show()
-
-class TestOperators(unittest.TestCase):
-    def test_operator_init(self):
-        self.assertIsNotNone(Operator())
-
-    def test_operator_null(self):
-        self.assertIsNotNone(Operator(matrix=[1,2,3]))
-
-class TestPotential(unittest.TestCase):
-    def test_potential_init(self):
-        self.assertIsNotNone(Potential())
-
-    def test_potential_show(self):
-        Potential().show()
-        Potential.harmonic_well(omega=1).show()
-        Potential.harmonic_halfwell(omega=1).show()
-        Potential.infinite_well(a=10).show()
-        Potential.finite_well(a=10, vo=0.5).show()
-
-class TestHamiltoninan(unittest.TestCase):
-    def test_hamiltonian_init(self):
-        self.assertIsNotNone(Hamiltonian())
-
-    def test_hamiltonian_harmonic(self):
-        h = Hamiltonian(Potential.harmonic_well())
-        energies, states = h.eigenstates()
-        plt.plot(states)
-        plt.show()
-
-    def test_infinite_well(self):
-        h = Hamiltonian(Potential.infinite_well(a=10))
-        energies, states = h.eigenstates()
-        plt.plot(states)
-        plt.show()
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-#
-#
-# # x = np.linspace(-10, 10, 1001)
-# # sigma = complex(3)
-# # # psi.psi = psi.d2_dx2.matrix(x.shape)*psi.psi
-#
-# # op = Operator()
-# # print(d_dx(op))
-# # print(d2_dx2(op))
-#
-#
-# psi = Wavefunction()
-# psi.set_to_gaussian(sigma=1)
-# psi.normalize()
-# psi.psi = d_dx(psi)
-# print(psi.psi)
-# psi.show()
-#
-# exit()
-#
-#
-#
-# print(psi.is_normalized())
-# psi.show()
-#
-#
-# H = Hamiltonian(xMin=-25, xMax=25, N=1000)
-# print(type(H.d2_dx2.matrix(((10,10)))))
-# exit()
-# H.set_harmonic_well(omega=0.1)
-# # H.set_finite_well(a=10, vo=1)
-# H.compute_eigenstates(k=4)
-# H.show_eigenstates()
-# # H.show_energies()
