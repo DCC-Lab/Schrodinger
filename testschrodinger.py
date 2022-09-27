@@ -104,6 +104,10 @@ class TestHamiltoninan(unittest.TestCase):
         plt.plot(states)
         plt.show()
 
+    def test_infinite_well(self):
+        h = Hamiltonian(Potential.infinite_well(a=10))
+        h.show_eigenstates()
+
     def test_delta_barrier(self):
         h = Hamiltonian(Potential.delta_barrier())
         with self.assertRaises(Exception):

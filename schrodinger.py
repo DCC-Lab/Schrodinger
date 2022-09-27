@@ -13,14 +13,16 @@ https://medium.com/@mathcube7/two-lines-of-python-to-solve-the-schrödinger-equa
 
 INFINITY = 100000
 
-class Vector:
+class Wavefunction:
     x = np.linspace(-10,10,1001)
 
-    def __init__(self, values=None):
-        if values is None:
-            self.matrix = np.zeros(len(self.x))
-        else:
-            self.matrix = values
+    def __init__(self, psi = None, label=r"$\psi$"):
+        super().__init__()
+        if psi is None:
+            psi = np.zeros(len(self.x),dtype=complex)
+
+        self.label = label
+        self.matrix = np.array(psi, dtype=complex)
 
     @property
     def dx(self):
@@ -32,7 +34,7 @@ class Vector:
         if norm2 != 0:
             self.matrix /= np.sqrt(norm2)
         else:
-            raise ValueError("Vector is not normalizable because it is null")
+            raise ValueError("Wavefunction is not normalizable because it is null")
 
     def norm2(self):
         return spi.trapezoid(np.conj(self.matrix) * self.matrix, x=self.x, dx=self.dx)
@@ -42,15 +44,6 @@ class Vector:
             return True
         else:
             return False
-
-class Wavefunction(Vector):
-    def __init__(self, psi = None, label=r"$\psi$"):
-        super().__init__()
-        if psi is None:
-            psi = np.zeros(len(self.x),dtype=complex)
-
-        self.label = label
-        self.matrix = np.array(psi)
 
     @classmethod
     def gaussian(cls, sigma, normalized=True):
@@ -76,6 +69,7 @@ class Wavefunction(Vector):
 
         plt.show()
 
+
     
 class Operator:
     def __init__(self, matrix=None, label=""):
@@ -90,7 +84,7 @@ class Operator:
 
     @property
     def x(self):
-        return Vector.x
+        return Wavefunction.x
 
     @property
     def dx(self):
@@ -106,7 +100,7 @@ class Operator:
     def compute_eigenstates(self, k=3, which='SR'):
         while k > 0:
             try:
-                self._eigenvalues, self._eigenvectors = eigs( self.matrix , k=k, which=which)
+                eigenvalues, eigenvectors = eigs( self.matrix , k=k, which=which)
                 break                
             except np.linalg.LinAlgError as err:
                 print(err)
@@ -114,48 +108,15 @@ class Operator:
                 if k == 0:
                     raise ValueError("No eigenstates found")
 
-        self._eigenvalues = self._eigenvalues.real
-        for eig in self._eigenvectors:
-            if abs(max(eig.real))< abs(min(eig.real)):
-                self._eigenvectors *= -1
-
-    def show_eigenstates(self, which=None):
-        energies, eigenstates = self.eigenstates()
-        eMin = min(energies.real)
-        eMax = max(energies.real)
-        deltaE = eMax - eMin
-
-        fig,ax = plt.subplots()
-
-        if which is None:
-            which = range(eigenstates.shape[1])
-
-        for i in which:
-            if i == 0:
-                delta = energies[1]-energies[0]
-            elif i == eigenstates.shape[1]-1:
-                delta = energies[i]-energies[i-1]
-            else:
-                deltaPlus = energies[i+1]-energies[i]
-                deltaMinus = energies[i]-energies[i-1]
-                delta = min(deltaPlus, deltaMinus)
-
-            scaling = 0.5*delta/max(abs(eigenstates[:, i].real))
-            ax.plot(self.x, eigenstates[:, i].real * scaling + energies[i], label=r'$\psi_{0}$'.format(i))
-            print(energies[i], eigenstates[-1,i].real)
-
-        ax.set_ylim(eMin-deltaE*0.5, eMax+deltaE*0.5)
-  
-        ax.grid()
-        ax.legend()
-        ax.set_ylabel("Energy [arb.u.]")
-        ax.set_xlabel("Distance [arb.u]")
-        ax.set_xlim(min(self.x), max(self.x))
-        plt.show()
+        self._eigenvalues = eigenvalues.real
+        self._eigenvectors = []
+        for i in range(eigenvectors.shape[1]):
+            self._eigenvectors.append(Wavefunction(psi=eigenvectors[:,i], label=r"$\psi_{{{0}}}$".format(i)))
 
 def D_Dx(vector=None):
-    dx = Vector.x[1] - Vector.x[0]
-    operator_matrix = FinDiff(0, dx, 1).matrix(Vector.x.shape)
+    dx = Wavefunction.x[1] - Wavefunction.x[0]
+    operator_matrix = FinDiff(0, dx, 1).matrix(Wavefunction.x.shape)
+
 
     if vector is not None:
         theClass = type(vector)
@@ -163,9 +124,10 @@ def D_Dx(vector=None):
     else:
         return Operator(operator_matrix)
 
+
 def D2_Dx2(vector=None):
-    dx = Vector.x[1] - Vector.x[0]
-    operator_matrix = FinDiff(0, dx, 2).matrix(Vector.x.shape)
+    dx = Wavefunction.x[1] - Wavefunction.x[0]
+    operator_matrix = FinDiff(0, dx, 2).matrix(Wavefunction.x.shape)
 
     if vector is not None:
         theClass = type(vector)
@@ -177,15 +139,15 @@ class Potential(Operator):
     """ The class describes several potential that we encounter in quantum mechanics.
     It makes use of the default x from Operator.x """
 
-    def __init__(self, v=None, label=None):
-        if v is None:
-            v = np.zeros((len(Vector.x),))
+    def __init__(self, values=None, label=None):
+        if values is None:
+            values = np.zeros((len(Wavefunction.x),))
 
-        self.v = v
-        super().__init__( diags(self.v), label=label )
+        self.values = values
+        super().__init__( diags(self.values), label=label )
 
     def add_to_plot(self, axis):
-        axis.plot(self.x, np.real(self.v), label=self.label)
+        axis.plot(self.x, np.real(self.values), "k--", label=self.label)
 
     def show(self):
         fig, axis = plt.subplots()
@@ -202,9 +164,9 @@ class Potential(Operator):
     @classmethod
     def infinite_well(cls, a):
         """ This sets to potential to a infinite well of width a """
-        v = np.zeros((len(Vector.x),))
+        v = np.zeros((len(Wavefunction.x),))
 
-        for i, x in enumerate(Vector.x):
+        for i, x in enumerate(Wavefunction.x):
             if abs(x) >= abs(a)/2:
                 v[i]   = INFINITY
 
@@ -213,9 +175,9 @@ class Potential(Operator):
     @classmethod
     def finite_well(cls, a, vo):
         """ This sets to potential to a finite well of width a and depth vo"""
-        v = np.zeros((len(Vector.x),))
+        v = np.zeros((len(Wavefunction.x),))
 
-        for i, x in enumerate(Vector.x):
+        for i, x in enumerate(Wavefunction.x):
             if abs(x) >= abs(a)/2:
                 v[i] = vo
 
@@ -224,7 +186,7 @@ class Potential(Operator):
     @classmethod
     def harmonic_well(cls, omega=0.5):
         """ This sets to potential to a quadratic well of constant V(x) = omega * x^2 """
-        x = Vector.x
+        x = Wavefunction.x
         v = omega*x*x
 
         return Potential(v, label="Harmonic well")
@@ -232,9 +194,9 @@ class Potential(Operator):
     @classmethod
     def harmonic_halfwell(cls, omega=0.5):
         """ This sets to potential to a quadratic half-well of constant V(x) = omega * x^2 """
-        v = omega*Vector.x*Vector.x
+        v = omega*Wavefunction.x*Wavefunction.x
 
-        for i, x in enumerate(Vector.x):
+        for i, x in enumerate(Wavefunction.x):
             if x < 0:
                 v[i] = INFINITY
 
@@ -243,9 +205,9 @@ class Potential(Operator):
     @classmethod
     def delta_barrier(cls):
         """ This sets to potential to a quadratic half-well of constant V(x) = omega * x^2 """
-        v = np.zeros((len(Vector.x),))
+        v = np.zeros((len(Wavefunction.x),))
 
-        for i, x in enumerate(Vector.x):
+        for i, x in enumerate(Wavefunction.x):
             if x >= 0:
                 v[i] = INFINITY
                 break
@@ -256,9 +218,57 @@ class Hamiltonian(Operator):
     def __init__(self, potential=None):
         super().__init__()
         if potential is None:
-            self.V = Potential()
+            self.potential = Potential()
         else:
-            self.V = potential
+            self.potential = potential
 
-        self.matrix = ( -0.5 * D2_Dx2().matrix + self.V.matrix )
+        self.matrix = ( -0.5 * D2_Dx2().matrix + self.potential.matrix )
+
+    def show_eigenstates(self, which=None, probability=False):
+        if which is not None:
+            k = max(which)+1
+        else:
+            k = 3
+
+        energies, eigenstates = self.eigenstates(k=k)
+
+        eMin = min(energies.real)
+        eMax = max(energies.real)
+        deltaE = eMax - eMin
+
+        fig,ax = plt.subplots()
+
+        if which is None:
+            which = range(len(eigenstates))
+
+        for i in which:
+            if i == 0:
+                delta = energies[1]-energies[0]
+            elif i == len(eigenstates)-1:
+                delta = energies[i]-energies[i-1]
+            else:
+                deltaPlus = energies[i+1]-energies[i]
+                deltaMinus = energies[i]-energies[i-1]
+                delta = min(deltaPlus, deltaMinus)
+
+            if probability:
+                scaling = 0.5*delta/max(abs(eigenstates[i].matrix)**2)
+                ax.plot(self.x, np.abs(eigenstates[i].matrix)**2 * scaling + energies[i], label=r'$\psi_{0}$'.format(i))
+            else:
+                scaling = 0.5*delta/max(abs(eigenstates[i].matrix.real))
+                ax.plot(self.x, eigenstates[i].matrix.real * scaling + energies[i], label=r'$\psi_{0}$'.format(i))
+        self.potential.add_to_plot(ax)
+        ax.set_ylim(eMin-deltaE*0.5, eMax+deltaE*0.5)
+  
+        ax.grid()
+        ax.legend()
+        ax.set_ylabel("Energy [arb.u.]")
+        ax.set_xlabel("Distance [arb.u]")
+        ax.set_xlim(min(self.x), max(self.x))
+        plt.show()
+
+if __name__ == "__main__":
+    # Wavefunction.x = np.linspace(-100,100,4001)
+    h = Hamiltonian(Potential.harmonic_well(omega=0.1))
+    h.show_eigenstates(probability=False)
 
