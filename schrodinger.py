@@ -4,7 +4,6 @@ from scipy.sparse import diags
 from scipy.sparse.linalg import eigs
 from findiff import FinDiff
 import matplotlib.pyplot as plt
-import pandas as pd
 
 """ 
 Reference
@@ -69,8 +68,6 @@ class Wavefunction:
 
         plt.show()
 
-
-    
 class Operator:
     def __init__(self, matrix=None, label=""):
         if matrix is None:
