@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.integrate as spi
 from scipy.sparse import diags
+from scipy.constants import hbar, m_e, elementary_charge, Planck, c
 from scipy.sparse.linalg import eigs
 from findiff import FinDiff
 import matplotlib.pyplot as plt
@@ -11,6 +12,7 @@ https://medium.com/@mathcube7/two-lines-of-python-to-solve-the-schrödinger-equa
 """
 
 INFINITY = 100000
+Ksch = 0.5*hbar*hbar/m_e/elementary_charge/1e-20 # in eV*Angstrom^2
 
 class Wavefunction:
     x = np.linspace(-10,10,1001)
@@ -63,7 +65,7 @@ class Wavefunction:
         axis.grid()
         axis.legend()
         axis.set_ylabel("Wavefunction [arb.u.]")
-        axis.set_xlabel("Distance [arb.u]")
+        axis.set_xlabel(r"Distance [$\AA$]")
         axis.set_xlim(min(self.x), max(self.x))
 
         plt.show()
@@ -152,8 +154,8 @@ class Potential(Operator):
 
         axis.grid()
         axis.legend()
-        axis.set_ylabel("Energy [arb.u.]")
-        axis.set_xlabel("Distance [arb.u]")
+        axis.set_ylabel("Energy [eV]")
+        axis.set_xlabel(r"Distance [$\AA$]")
         axis.set_xlim(min(self.x), max(self.x))
 
         plt.show()
@@ -175,10 +177,21 @@ class Potential(Operator):
         v = np.zeros((len(Wavefunction.x),))
 
         for i, x in enumerate(Wavefunction.x):
-            if abs(x) >= abs(a)/2:
-                v[i] = vo
+            if abs(x) <= abs(a)/2:
+                v[i] = -abs(vo)
 
-        return Potential(v, label="Finite well of depth $V_o = {0}$".format(vo))
+        return Potential(v, label=r"Finite well of width {0:.1f} $\AA$, depth $V_o = {1} eV$".format(a, vo))
+
+    @classmethod
+    def finite_barrier(cls, a, vo):
+        """ This sets to potential to a finite well of width a and depth vo"""
+        v = np.zeros((len(Wavefunction.x),))
+
+        for i, x in enumerate(Wavefunction.x):
+            if abs(x) <= abs(a)/2:
+                v[i] = abs(vo)
+
+        return Potential(v, label=r"Finite barrier of width {0:.1f} $\AA$, height $V_o = {1} eV$".format(a, vo))
 
     @classmethod
     def harmonic_well(cls, omega=0.5):
@@ -200,7 +213,7 @@ class Potential(Operator):
         return Potential(v, label="Harmonic half-well")
 
     @classmethod
-    def delta_barrier(cls):
+    def delta_barrier(cls, alpha=1.0):
         """ This sets to potential to a quadratic half-well of constant V(x) = omega * x^2 """
         v = np.zeros((len(Wavefunction.x),))
 
@@ -211,6 +224,18 @@ class Potential(Operator):
 
         return Potential(v, label="Delta barrier")
 
+    @classmethod
+    def delta_well(cls, alpha=1.0):
+        """ This sets to potential to a quadratic half-well of constant V(x) = omega * x^2 """
+        v = np.zeros((len(Wavefunction.x),))
+
+        for i, x in enumerate(Wavefunction.x):
+            if x >= 0:
+                v[i] = -INFINITY
+                break
+
+        return Potential(v, label="Delta well")
+
 class Hamiltonian(Operator):
     def __init__(self, potential=None):
         super().__init__()
@@ -219,7 +244,7 @@ class Hamiltonian(Operator):
         else:
             self.potential = potential
 
-        self.matrix = ( -0.5 * D2_Dx2().matrix + self.potential.matrix )
+        self.matrix = ( - Ksch*D2_Dx2().matrix + self.potential.matrix )
 
     def show_eigenstates(self, which=None, probability=False):
         if which is not None:
@@ -259,13 +284,52 @@ class Hamiltonian(Operator):
   
         ax.grid()
         ax.legend()
-        ax.set_ylabel("Energy [arb.u.]")
-        ax.set_xlabel("Distance [arb.u]")
+        ax.set_ylabel("Energy [eV]")
+        ax.set_xlabel(r"Distance [$\AA$]")
         ax.set_xlim(min(self.x), max(self.x))
         plt.show()
 
-if __name__ == "__main__":
-    # Wavefunction.x = np.linspace(-100,100,4001)
-    h = Hamiltonian(Potential.harmonic_well(omega=0.1))
-    h.show_eigenstates(probability=False)
 
+def infrared_qwlaser():
+    Wavefunction.x = np.linspace(-100,100,1001)
+
+    for a in np.linspace(28, 35, 16):
+        try:
+            h = Hamiltonian(Potential.finite_well(a=a, vo=1000.0))
+            # h = Hamiltonian(Potential.infinite_well(a=a))
+            energies, eigenstates = h.eigenstates(k=2)
+            print("{0:.2f}\t{1:.3}".format(a, (energies[1]-energies[0])))
+            #h.show_eigenstates(probability=False)
+        except Exception as err:
+            print("No states for {0} [{1}]".format(a,err))
+            
+
+def infrared_qwlaser_validate(wavelength = 10.6e-6):
+    Wavefunction.x = np.linspace(-50,50,8001)
+
+    target_laser_energy = Planck * c /wavelength/elementary_charge
+
+    for vo in [1,3,10,30,100,300,1000,3000,10000]:
+        try:
+            a = 28.0
+            da = 0.1
+            previous_diff = 10
+            diff = 10
+            while abs(diff) > 0.001:
+                a += da
+                h = Hamiltonian(Potential.finite_well(a=a, vo=vo))
+                energies, eigenstates = h.eigenstates(k=2)
+                current_laser_energy = energies[1]-energies[0]
+                
+                diff = current_laser_energy-target_laser_energy
+                if diff * previous_diff < 0:
+                    da = - da/2
+                previous_diff = diff
+
+
+            print("{0:.4f}\t{1}\t{2}".format(a, vo, current_laser_energy))
+        except Exception as err:
+            print("No states for {0} [{1}]".format(a,err))
+
+if __name__ == "__main__":
+    infrared_qwlaser_validate()
