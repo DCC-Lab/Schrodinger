@@ -372,7 +372,7 @@ def infrared_qwlaser_find(vo, target_diff_in_eV = 0.001, wavelength = 10.6e-6):
 
             previous_diff = diff
             # print(a, vo, diff, da)
-        print(vo, a, current_laser_energy)
+        # print(vo, a, current_laser_energy)
         return vo, a, current_laser_energy
     except Exception as err:
         print("No states for {0} [{1}]".format(a,err))
@@ -380,25 +380,28 @@ def infrared_qwlaser_find(vo, target_diff_in_eV = 0.001, wavelength = 10.6e-6):
 
 if __name__ == "__main__":
     Wavefunction.x = np.linspace(-50,50,1001)
-    
-    a_inf = 30.9124
-    E = (2**2-1**2)*(3.1416**2)*Ksch/(a_inf**2)
-    print("Puits infini de largeur {1}: {0} eV".format(E, a_inf))
+    wavelength = 10.6e-6
+    laser_energy_in_eV = Planck * c /wavelength/elementary_charge
+    a_inf = np.sqrt((2**2-1**2)*(3.1416**2)*Ksch/laser_energy_in_eV)
+    print("Puits infini de largeur {1:.3f} Å: {0:.3f} eV (théorique)".format(laser_energy_in_eV, a_inf))
 
     arg_vo = [1,3,10,30,100,300,1000,3000]
-    arg_diff = [0.0005]*len(arg_vo)
+    arg_diff = [0.001]*len(arg_vo)
     args = zip(arg_vo, arg_diff)
+    pairs = []
     # For multiprocess:
     try:
+        print("Attempting multiprocess calculation.")
         from multiprocess import Pool
 
         with Pool(8) as p:
             pairs = p.starmap(infrared_qwlaser_find, args) 
 
     except Exception as err:
-        print("Falling back to single process {0}".format(err))
+        print("Falling back to single process calculation: {0}\n`pip install multiprocess` next time.".format(err))
         for vo, diff in args:
-            pairs = infrared_qwlaser_find(vo=vo, target_diff_in_eV=diff)            
+            pair = infrared_qwlaser_find(vo=vo, target_diff_in_eV=diff)
+            pairs.append(pair)
 
     for vo, a, E in pairs:
         print("{0}\t{1}\t{2}".format(vo, a,E))
