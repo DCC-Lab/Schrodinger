@@ -290,12 +290,12 @@ class Hamiltonian(Operator):
         plt.show()
 
 
-def infrared_qwlaser():
+def infrared_qwlaser(vo):
     Wavefunction.x = np.linspace(-100,100,1001)
 
     for a in np.linspace(28, 35, 16):
         try:
-            h = Hamiltonian(Potential.finite_well(a=a, vo=1000.0))
+            h = Hamiltonian(Potential.finite_well(a=a, vo=vo))
             # h = Hamiltonian(Potential.infinite_well(a=a))
             energies, eigenstates = h.eigenstates(k=2)
             print("{0:.2f}\t{1:.3}".format(a, (energies[1]-energies[0])))
@@ -303,42 +303,6 @@ def infrared_qwlaser():
         except Exception as err:
             print("No states for {0} [{1}]".format(a,err))
             
-
-def infrared_qwlaser_validate(wavelength = 10.6e-6):
-    Wavefunction.x = np.linspace(-50,50,4001)
-    dx = Wavefunction.x[1]-Wavefunction.x[0]
-    target_laser_energy = Planck * c /wavelength/elementary_charge
-
-    for vo in [1,3,10,30,100,300,1000,3000]:
-        try:
-            a = 28.0
-            da = 0.1
-            previous_diff = 10
-            diff = 10
-            while abs(diff) > 0.0005:
-                a += da
-                h = Hamiltonian(Potential.finite_well(a=a, vo=vo))
-                energies, eigenstates = h.eigenstates(k=2)
-                current_laser_energy = energies[1]-energies[0]
-                
-                diff = current_laser_energy-target_laser_energy
-                if diff * previous_diff < 0:
-                    da = - da/2
-                    if abs(da) < dx:
-                        if da < 0:
-                            da = -dx
-                        else:
-                            da = dx
-                        # print("Spatial resolution reached")
-                else:
-                    da = 1.4*da
-
-                previous_diff = diff
-                # print(diff, da)
-
-            print("{0:.4f}\t{1}\t{2}".format(a, vo, current_laser_energy))
-        except Exception as err:
-            print("No states for {0} [{1}]".format(a,err))
 
 def infrared_qwlaser_find(vo, target_diff_in_eV = 0.001, wavelength = 10.6e-6):
     dx = Wavefunction.x[1]-Wavefunction.x[0]
