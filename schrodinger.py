@@ -397,8 +397,9 @@ if __name__ == "__main__":
         with Pool(8) as p:
             pairs = p.starmap(infrared_qwlaser_find, args) 
 
-    except Exception as err:
-        print("Falling back to single process calculation: {0}\n`pip install multiprocess` next time.".format(err))
+    except ImportError as err:
+        print("Error: {0}\n`pip install multiprocess` next time.".format(err))
+        print("Falling back to single process calculation.")
         for vo, diff in args:
             pair = infrared_qwlaser_find(vo=vo, target_diff_in_eV=diff)
             pairs.append(pair)
