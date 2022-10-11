@@ -347,7 +347,7 @@ if __name__ == "__main__":
     wavelength = 10.6e-6
     laser_energy_in_eV = Planck * c /wavelength/elementary_charge
     a_inf = np.sqrt((2**2-1**2)*(3.1416**2)*Ksch/laser_energy_in_eV)
-    print("Puits infini de largeur {1:.3f} Å: {0:.3f} eV (théorique)".format(laser_energy_in_eV, a_inf))
+    print("Width of infinite well {1:.3f} Å for transition of {0:.3f} eV (theoretical)".format(laser_energy_in_eV, a_inf))
 
     arg_vo = [1,3,10,30,100,300,1000,3000]
     arg_diff = [0.001]*len(arg_vo)
