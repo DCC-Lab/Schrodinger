@@ -183,6 +183,17 @@ class Potential(Operator):
         return Potential(v, label=r"Finite well of width {0:.1f} $\AA$, depth $V_o = {1} eV$".format(a, vo))
 
     @classmethod
+    def two_finite_wells(cls, a, b, vo):
+        """ This sets to potential to two finite wells of width a,separated by b and depth vo"""
+        v = np.zeros((len(Wavefunction.x),))
+
+        for i, x in enumerate(Wavefunction.x):
+            if abs(x) >= abs(b/2) and abs(x) <= abs(b/2+a):
+                v[i] = -abs(vo)
+
+        return Potential(v, label=r"Two well a={0:.1f} $\AA$, b={1:.1f} $\AA$, $V_o = {2} eV$".format(a, b, vo))
+
+    @classmethod
     def finite_barrier(cls, a, vo):
         """ This sets to potential to a finite well of width a and depth vo"""
         v = np.zeros((len(Wavefunction.x),))
@@ -214,7 +225,7 @@ class Potential(Operator):
 
     @classmethod
     def delta_barrier(cls, alpha=1.0):
-        """ This sets to potential to a quadratic half-well of constant V(x) = omega * x^2 """
+        """ This sets to potential to an infinite potentiel at x = 0 """
         v = np.zeros((len(Wavefunction.x),))
 
         for i, x in enumerate(Wavefunction.x):
@@ -226,7 +237,7 @@ class Potential(Operator):
 
     @classmethod
     def delta_well(cls, alpha=1.0):
-        """ This sets to potential to a quadratic half-well of constant V(x) = omega * x^2 """
+        """ This sets to potential to an negative infinite potentiel at x = 0 """
         v = np.zeros((len(Wavefunction.x),))
 
         for i, x in enumerate(Wavefunction.x):
@@ -264,7 +275,9 @@ class Hamiltonian(Operator):
             which = range(len(eigenstates))
 
         for i in which:
-            if i == 0:
+            if i == 0 and len(which) == 1:
+                delta = 0
+            elif i == 0:
                 delta = energies[1]-energies[0]
             elif i == len(eigenstates)-1:
                 delta = energies[i]-energies[i-1]
@@ -342,7 +355,8 @@ def infrared_qwlaser_find(vo, target_diff_in_eV = 0.001, wavelength = 10.6e-6):
         print("No states for {0} [{1}]".format(a,err))
         return None, None, None
 
-if __name__ == "__main__":
+
+def infrared_qw_well_laser_at_10_6():
     Wavefunction.x = np.linspace(-50,50,1001)
     wavelength = 10.6e-6
     laser_energy_in_eV = Planck * c /wavelength/elementary_charge
@@ -370,3 +384,9 @@ if __name__ == "__main__":
 
     for vo, a, E in pairs:
         print("{0}\t{1}\t{2}".format(vo, a,E))
+
+if __name__ == "__main__":
+    # infrared_qw_well_laser_at_10_6()
+    Wavefunction.x = np.linspace(-60,60,501)
+    h = Hamiltonian(Potential.finite_well(a=30, vo=4))
+    h.show_eigenstates(which=[0,1,2])
