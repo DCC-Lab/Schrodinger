@@ -99,8 +99,10 @@ class Operator:
     def compute_eigenstates(self, k=3, which='SR'):
         while k > 0:
             try:
+                lock.acquire()
                 eigenvalues, eigenvectors = eigs( self.matrix , k=k, which=which)
-                break                
+                lock.release()
+                break
             except np.linalg.LinAlgError as err:
                 print(err)
                 k -= 1
@@ -308,7 +310,9 @@ def infrared_qwlaser(vo):
 
     for a in np.linspace(28, 35, 16):
         try:
+            lock.acquire()
             h = Hamiltonian(Potential.finite_well(a=a, vo=vo))
+            lock.release()
             # h = Hamiltonian(Potential.infinite_well(a=a))
             energies, eigenstates = h.eigenstates(k=2)
             print("{0:.2f}\t{1:.3}".format(a, (energies[1]-energies[0])))
@@ -317,8 +321,11 @@ def infrared_qwlaser(vo):
             print("No states for {0} [{1}]".format(a,err))
             
 
+
 def infrared_qwlaser_find(vo, target_diff_in_eV = 0.001, wavelength = 10.6e-6):
+    lock.acquire()
     dx = Wavefunction.x[1]-Wavefunction.x[0]
+    lock.release()
     target_laser_energy = Planck * c /wavelength/elementary_charge
 
     try:
@@ -337,19 +344,17 @@ def infrared_qwlaser_find(vo, target_diff_in_eV = 0.001, wavelength = 10.6e-6):
             if diff * previous_diff < 0:
                 if da == dx:
                     iterations += 1
-                    da = -dx
+                    da = -dx/2
                 elif da == -dx:
                     iterations += 1
                     da = dx
                 else:
                     da = - da/2
             else:
-                da = 1.4*da
+                da = 1.23*da
                 iterations = 0
 
             previous_diff = diff
-            # print(a, vo, diff, da)
-        # print(vo, a, current_laser_energy)
         return vo, a, current_laser_energy
     except Exception as err:
         print("No states for {0} [{1}]".format(a,err))
@@ -357,7 +362,7 @@ def infrared_qwlaser_find(vo, target_diff_in_eV = 0.001, wavelength = 10.6e-6):
 
 
 def infrared_qw_well_laser_at_10_6():
-    Wavefunction.x = np.linspace(-50,50,1001)
+    Wavefunction.x = np.linspace(-40,40,501)
     wavelength = 10.6e-6
     laser_energy_in_eV = Planck * c /wavelength/elementary_charge
     a_inf = np.sqrt((2**2-1**2)*(3.1416**2)*Ksch/laser_energy_in_eV)
@@ -367,26 +372,16 @@ def infrared_qw_well_laser_at_10_6():
     arg_diff = [0.001]*len(arg_vo)
     args = zip(arg_vo, arg_diff)
     pairs = []
-    # For multiprocess:
-    try:
-        print("Attempting multiprocess calculation.")
-        from multiprocess import Pool
 
-        with Pool(8) as p:
-            pairs = p.starmap(infrared_qwlaser_find, args) 
-
-    except ImportError as err:
-        print("Error: {0}\n`pip install multiprocess` next time.".format(err))
-        print("Falling back to single process calculation.")
-        for vo, diff in args:
-            pair = infrared_qwlaser_find(vo=vo, target_diff_in_eV=diff)
-            pairs.append(pair)
+    for vo, diff in args:
+        pair = infrared_qwlaser_find(vo=vo, target_diff_in_eV=diff)
+        pairs.append(pair)
 
     for vo, a, E in pairs:
         print("{0}\t{1}\t{2}".format(vo, a,E))
 
 if __name__ == "__main__":
-    # infrared_qw_well_laser_at_10_6()
-    Wavefunction.x = np.linspace(-60,60,501)
-    h = Hamiltonian(Potential.finite_well(a=30, vo=4))
-    h.show_eigenstates(which=[0,1,2])
+    infrared_qw_well_laser_at_10_6()
+    # Wavefunction.x = np.linspace(-60,60,501)
+    # h = Hamiltonian(Potential.finite_well(a=30, vo=4))
+    # h.show_eigenstates(which=[0,1,2])
