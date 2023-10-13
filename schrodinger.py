@@ -99,9 +99,7 @@ class Operator:
     def compute_eigenstates(self, k=3, which='SR'):
         while k > 0:
             try:
-                lock.acquire()
                 eigenvalues, eigenvectors = eigs( self.matrix , k=k, which=which)
-                lock.release()
                 break
             except np.linalg.LinAlgError as err:
                 print(err)
