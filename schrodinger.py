@@ -5,7 +5,6 @@ from scipy.constants import hbar, m_e, elementary_charge, Planck, c
 from scipy.sparse.linalg import eigs
 from findiff import FinDiff
 import matplotlib.pyplot as plt
-from multiprocess import Pool, Lock
 
 """ 
 Reference
@@ -14,7 +13,6 @@ https://medium.com/@mathcube7/two-lines-of-python-to-solve-the-schrödinger-equa
 
 INFINITY = 100000
 Ksch = 0.5*hbar*hbar/m_e/elementary_charge/1e-20 # in eV*Angstrom^2
-lock = Lock()
 
 class Wavefunction:
     x = np.linspace(-10,10,1001)
