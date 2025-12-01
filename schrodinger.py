@@ -194,6 +194,23 @@ class Potential(Operator):
                 v[i] = -abs(vo)
 
         return Potential(v, label=r"Two well a={0:.1f} $\AA$, b={1:.1f} $\AA$, $V_o = {2} eV$".format(a, b, vo))
+    
+    @classmethod
+    def periodic_wells(cls, a, b, vo):
+        """Creates periodic potential wells of width a, separated by b and depth vo"""
+        x = Wavefunction.x
+        v = np.zeros_like(x)
+
+        L = a + b  # period length
+
+        for i, xi in enumerate(x):
+            pos = (xi % L + L) % L
+            if pos <= a:
+                v[i] = abs(vo)
+            else:
+                v[i] = 0
+                
+        return Potential(v, label=f"Periodic wells: a={a}, b={b}, V0={vo}")
 
     @classmethod
     def finite_barrier(cls, a, vo):
@@ -381,7 +398,7 @@ def infrared_qw_well_laser_at_10_6():
         print("{0}\t{1}\t{2}".format(vo, a,E))
 
 if __name__ == "__main__":
-    infrared_qw_well_laser_at_10_6()
-    # Wavefunction.x = np.linspace(-60,60,501)
-    # h = Hamiltonian(Potential.finite_well(a=30, vo=3))
-    # h.show_eigenstates(which=[0,1,2])
+    # infrared_qw_well_laser_at_10_6()
+    Wavefunction.x = np.linspace(-120,120,2001)
+    h = Hamiltonian(Potential.periodic_wells(a=5, b=15, vo=1.5))
+    h.show_eigenstates(which=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20])
