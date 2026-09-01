@@ -42,11 +42,11 @@ class State:
     def probabilities(self):
         return {str(e): float(abs(c)) ** 2 for c, e in zip(self.coeffs, self.bases)}
 
-    def measure(self, basis=None):
+    def measure(self, k=1, basis=None):
         probs = self.probabilities
         measured_state = random.choices(
-            list(probs.keys()), weights=list(probs.values()), k=1
-        )[0]
+            list(probs.keys()), weights=list(probs.values()), k=k
+        )
         return measured_state
 
 
@@ -58,12 +58,11 @@ class BaseStateTestCase(unittest.TestCase):
         self.assertEqual(str(State()), "(0.0+0.0j)| +z 〉+ (0.0+0.0j)| -z 〉")
 
     def test003_prints(self):
-        print(State().probabilities)
+        self.assertEqual(sum(State().probabilities.values()), 0)
 
     def test004_measure(self):
         s = State(coeffs=[1, 1])
-        for _ in range(10):
-            print(s.measure())
+        print(s.measure(k=10))
 
 
 if __name__ == "__main__":
