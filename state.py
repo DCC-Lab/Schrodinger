@@ -8,24 +8,20 @@ import weakref
 
 
 class State:
-    def __init__(self, label, operator=None):
+    def __init__(self, label):
         if label is None:
             raise ValueError("The state label must be unique and not None")
 
         self.label = label
 
-        self.operators = set()
-        if operator is not None:
-            self.operators.add(operator)
-
     def __str__(self):
         return f"| {self.label} 〉"
 
     def __eq__(self, rhs):
-        return self.label == rhs.label and self.operators == rhs.operators
+        return self.label == rhs.label
 
     def __hash__(self):
-        return hash((self.label, tuple(self.operators)))
+        return hash(self.label)
 
     def is_eigenstate_of(self, operator):
         return self in operator.eigenstates
@@ -37,15 +33,89 @@ class State:
         return None
 
 
+class Superposition(State):
+    def __init__(self, label, states: dict):
+        if label is None:
+            raise ValueError("The state label must be unique and not None")
+
+        self.label = label
+        self.states = states
+
+        self.normalize()
+
+    def __str__(self):
+        return f" {super().__str__()} = " + " + ".join(
+            [f"{coeff:.3f}{state}" for state, coeff in self.states.items()]
+        )
+
+    @property
+    def coeffs(self):
+        return list(self.states.values())
+
+    @property
+    def norm(self):
+        return sum(abs(np.array(self.coeffs)) ** 2)
+
+    @property
+    def is_normalized(self):
+        return math.isclose(self.norm, 1, rel_tol=1e-6, abs_tol=0.0)
+
+    def normalize(self):
+        if self.norm != 0:
+            amplitude = math.sqrt(self.norm)
+
+            for k, v in self.states.items():
+                self.states[k] = v / amplitude
+
+        return self
+
+    def measure(self, operator, k=1):
+        probs = {}
+        for state, coeff in self.states.items():
+            if state not in operator.eigenstates:
+                raise ValueError(
+                    "Impossible to apply measurement operator on superposition if any basis state of the superposition is not an eigenstate"
+                )
+            else:
+                probs[state] = abs(coeff) ** 2
+
+        measured_state = random.choices(
+            list(probs.keys()), weights=list(probs.values()), k=k
+        )
+        return Counter(measured_state)
+
+
 class Operator:
+    all = []
+
     def __init__(self, label, eigens=None):
         self.label = label
-
         self.eigens = {}
+
         if eigens is not None:
-            self.eigens = {
-                State(key, operator=self): value for key, value in eigens.items()
-            }
+            for state_or_label, eigenvalue in eigens.items():
+                self.add_eigenstate(state_or_label, eigenvalue)
+
+        Operator.all.append(self)
+
+    def add_eigenstate(self, state_or_label, eigenvalue):
+        if isinstance(state_or_label, str):
+            state = State(label=state_or_label)
+        elif isinstance(state_or_label, State):
+            state = state_or_label
+        else:
+            raise ValueError(
+                f"An eigenstate is a State or its label, not {type(state_or_label).__name__}"
+            )
+
+        if state in self.eigens and self.eigens[state] != eigenvalue:
+            raise ValueError(
+                f"{state} is already an eigenstate of {self.label} with eigenvalue {self.eigens[state]}"
+            )
+
+        self.eigens[state] = eigenvalue
+
+        return state
 
     @property
     def eigenvalues(self):
@@ -54,12 +124,6 @@ class Operator:
     @property
     def eigenstates(self):
         return list(self.eigens.keys())
-
-    def adopt_eigen(self, state, eigenvalue):
-        if state in self.eigens.keys():
-            return
-
-        self.eigens[state] = eigenvalue
 
     def __mul__(self, state):
         if not isinstance(state, State):
@@ -70,17 +134,6 @@ class Operator:
 
         # breakpoint()
         return (self, state)
-
-
-class EigenState(State):
-    def __init__(self, operators, eigenvalues, label=None):
-        if label is None:
-            label = str(eigenvalue)
-
-        super().__init__(label=label)
-
-        for op, v in zip(operators, eigenvalues):
-            self.operators[op] = v
 
 
 class Bra:
@@ -108,30 +161,6 @@ class Ket:
 
     def __str__(self):
         return f"| {self.state.label} 〉"
-
-
-#     @property
-#     def coeffs(self):
-#         return self._coeffs
-
-#     @property
-#     def norm(self):
-#         return sum(abs(self.coeffs) ** 2)
-
-#     def normalize(self):
-#         if self.norm != 0:
-#             self._coeffs = self.coeffs / math.sqrt(self.norm)
-
-#     @property
-#     def probabilities(self):
-#         return {str(e): float(abs(c)) ** 2 for c, e in zip(self.coeffs, self.bases)}
-
-#     def measure(self, k=1, basis=None):
-#         probs = self.probabilities
-#         measured_state = random.choices(
-#             list(probs.keys()), weights=list(probs.values()), k=k
-#         )
-#         return Counter(measured_state)
 
 
 class BaseStateTestCase(unittest.TestCase):
@@ -187,7 +216,7 @@ class BaseStateTestCase(unittest.TestCase):
     def test008_ket_is_eigenstate_when_explicitly_created_as_such(self):
         op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
         sz = State("+z")
-        op.adopt_eigen(sz, 0.5)
+        op.add_eigenstate(sz, 0.5)
 
         self.assertIsNotNone(sz)
         self.assertTrue(sz.is_eigenstate_of(op))
@@ -195,65 +224,44 @@ class BaseStateTestCase(unittest.TestCase):
 
     def test009_ket_is_eigenstate_when_explicitly_created_as_such_operator_none(self):
         op = Operator("Sz")
-        sz = State("+z")
-        op.adopt_eigen(sz, 0.5)
+        sz = op.add_eigenstate("+z", 0.5)
 
         self.assertIsNotNone(sz)
         self.assertTrue(sz.is_eigenstate_of(op))
         self.assertEqual(op * sz, (0.5, sz))
 
+    def test010_add_eigenstate_refuses_what_is_not_a_state(self):
+        op = Operator("Sz")
+        with self.assertRaises(ValueError):
+            op.add_eigenstate(42, 0.5)
+        self.assertEqual(op.eigenstates, [])
 
-#     def test002_prints(self):
-#         self.assertEqual(str(State()), "(0.0+0.0j)| +z 〉+ (0.0+0.0j)| -z 〉")
+    def test011_add_eigenstate_is_idempotent(self):
+        op = Operator("Sz", eigens={"+z": 0.5})
+        op.add_eigenstate("+z", 0.5)
+        op.add_eigenstate(State("+z"), 0.5)
+        self.assertEqual(op.eigenvalues, [0.5])
 
-#     def test003_prints(self):
-#         self.assertEqual(sum(State().probabilities.values()), 0)
+    def test012_add_eigenstate_refuses_to_contradict_itself(self):
+        op = Operator("Sz", eigens={"+z": 0.5})
+        with self.assertRaises(ValueError):
+            op.add_eigenstate("+z", 99)
+        self.assertEqual(op.eigens[State("+z")], 0.5)
 
-#     def test004_measure(self):
-#         s = State(coeffs=[1, 1])
-#         print(s.measure(k=10000))
+    def test013_superposition(self):
+        op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
+        e1, e2 = op.eigenstates
+        state = Superposition("ѱ", states={e1: 1, e2: 1})
+        self.assertIsNotNone(state)
+        self.assertTrue(state.is_normalized)
 
-#     def test005_bracket(self):
-#         self.assertEqual(Bra("+z") * Ket("+z"), 1)
-#         with self.assertRaises(ValueError):
-#             Bra("+z") * Ket("-z")
-
-#     def test010_eigen(self):
-#         ket = EigenKet("+z", +1 / 2, Sz)
-#         self.assertTrue(isinstance(ket, Ket))
-#         self.assertTrue(isinstance(ket, EigenKet))
-
-#     def test006_orthogonality(self):
-#         up, down = Sz_basis
-#         self.assertEqual(up.bra * up, 1)
-#         self.assertEqual(up.bra * down, 0)
-#         self.assertEqual(down.bra * up, 0)
-
-#     def test011_duals(self):
-#         ket = Ket("+z")
-#         bra_from_ket = Bra(label=ket.label)
-#         bra_from_ket2 = Bra.of(ket)
-#         bra_from_ket3 = Bra.dual_of(ket)
-
-#         self.assertTrue(isinstance(bra_from_ket, Bra))
-#         self.assertEqual(bra_from_ket.label, ket.label)
-
-#         # self.assertTrue(isinstance(Ket(Bra("+z")), Ket)
-#         # self.assertTrue(isinstance(EigenKet("+z", +1 / 2, Sz).bra, EigenBra))
-#         # self.assertTrue(isinstance(EigenBra("+z", +1 / 2, Sz).ket, EigenKet))
-
-#     def test012_operator_on_its_eigenkets(self):
-#         up, down = Sz_basis
-#         self.assertEqual(Sz * up, (+1 / 2, up))
-#         self.assertEqual(Sz * down, (-1 / 2, down))
-#         with self.assertRaises(ValueError):
-#             Sz * Ket("+z")
-
-#     def test020_complex_coefficients(self):
-#         for coeffs in ([1, 1], [1, 1j], [1, 1 + 1j], [3, -2j]):
-#             s = State(coeffs=coeffs)
-#             self.assertAlmostEqual(s.norm, 1)
-#             self.assertAlmostEqual(sum(s.probabilities.values()), 1)
+    def test014_superposition_measurement(self):
+        op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
+        e1, e2 = op.eigenstates
+        state = Superposition("ѱ", states={e1: 1, e2: 1})
+        counter = state.measure(op, k=10)
+        for s, c in counter.items():
+            print(f"{s} : {c}")
 
 
 if __name__ == "__main__":
