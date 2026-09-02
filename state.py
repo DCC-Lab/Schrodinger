@@ -7,7 +7,7 @@ from collections import Counter
 import weakref
 
 
-class State:
+class Ket:
     def __init__(self, label):
         if label is None:
             raise ValueError("The state label must be unique and not None")
@@ -23,14 +23,22 @@ class State:
     def __hash__(self):
         return hash(self.label)
 
-    def is_eigenstate_of(self, operator):
-        return self in operator.eigenstates
+    def __rmul__(self, bra):
+        if not isinstance(bra, Bra):
+            raise ValueError("Only bra and kets can be multiplied")
 
-    def has_eigenvalue_for(self, operator):
-        if self.is_eigenstate_of(operator):
-            return operator.eigens[self]
+        if bra.label == self.label:
+            return 1
+        else:
+            return (bra, self)
 
-        return None
+
+State = Ket
+
+
+class Bra(State):
+    def __str__(self):
+        return f"⟨ {self.label} |"
 
 
 class Superposition(State):
@@ -43,8 +51,8 @@ class Superposition(State):
 
         self.normalize()
 
-    def __str__(self):
-        return f" {super().__str__()} = " + " + ".join(
+    def expand(self):
+        return " + ".join(
             [f"{coeff:.3f}{state}" for state, coeff in self.states.items()]
         )
 
@@ -74,7 +82,7 @@ class Superposition(State):
         for state, coeff in self.states.items():
             if state not in operator.eigenstates:
                 raise ValueError(
-                    "Impossible to apply measurement operator on superposition if any basis state of the superposition is not an eigenstate"
+                    f"Impossible to apply measurement operator {operator} on superposition {self} if any basis state of the superposition is not an eigenstate"
                 )
             else:
                 probs[state] = abs(coeff) ** 2
@@ -125,42 +133,21 @@ class Operator:
     def eigenstates(self):
         return list(self.eigens.keys())
 
+    def has_eigenstate(self, state):
+        return state in self.eigens.keys()
+
+    def __str__(self):
+        return self.label
+
     def __mul__(self, state):
         if not isinstance(state, State):
             raise ValueError("An operator can only operate on a ket")
 
-        if state.is_eigenstate_of(self):
+        if self.has_eigenstate(state):
             return self.eigens[state], state
 
-        # breakpoint()
+        # If not an eigenstate, we cannot compute anything
         return (self, state)
-
-
-class Bra:
-    def __init__(self, state):
-        self.state = state
-
-    def __str__(self):
-        return f"⟨ {self.state.label} |"
-
-    def __mul__(self, rhs):
-        if not isinstance(rhs, Ket):
-            raise ValueError("A bra can only be multiplied with a ket")
-
-        if rhs.state == self.state:
-            return 1
-
-        raise ValueError(
-            "The dot product of an arbitray bra with an arbitrary ket is unknown because we do not know if they are eigenstates of any operator"
-        )
-
-
-class Ket:
-    def __init__(self, state):
-        self.state = state
-
-    def __str__(self):
-        return f"| {self.state.label} 〉"
 
 
 class BaseStateTestCase(unittest.TestCase):
@@ -169,32 +156,32 @@ class BaseStateTestCase(unittest.TestCase):
         self.assertIsNotNone(s)
 
     def test002_bra_init(self):
-        bra = Bra(State("+"))
+        bra = Bra("+")
         self.assertIsNotNone(bra)
-        self.assertEqual(bra.state.label, "+")
+        self.assertEqual(bra.label, "+")
 
     def test003_ket_init(self):
-        ket = Ket(State("+"))
+        ket = Ket("+")
         self.assertIsNotNone(ket)
-        self.assertEqual(ket.state.label, "+")
+        self.assertEqual(ket.label, "+")
 
     def test004_bra_ket_print(self):
-        bra = Bra(State("+"))
+        bra = Bra("+")
         self.assertEqual(str(bra), "⟨ + |")
 
-        ket = Ket(State("+"))
+        ket = Ket("+")
         self.assertEqual(str(ket), "| + 〉")
 
     def test005_bra_ket_product(self):
-        bra = Bra(State("+"))
-        ket = Ket(State("+"))
+        bra = Bra("+")
+        ket = Ket("+")
         self.assertEqual(bra * ket, 1)
 
-    def test005_bra_ket_product(self):
-        bra = Bra(State("+"))
-        ket = Ket(State("-"))
-        with self.assertRaises(ValueError):
-            bra * ket
+    # def test005_bra_ket_product(self):
+    #     bra = Bra(State("+"))
+    #     ket = Ket(State("-"))
+    #     with self.assertRaises(ValueError):
+    #         bra * ket
 
     def test006_operator(self):
         op = Operator("Sz")
@@ -204,13 +191,13 @@ class BaseStateTestCase(unittest.TestCase):
         op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
         (e1, e2) = op.eigenstates
         self.assertIsNotNone(e1)
-        self.assertTrue(e1.is_eigenstate_of(op))
+        self.assertTrue(op.has_eigenstate(e1))
 
     def test008_ket_not_eigenstate(self):
         op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
         sx = State("+x")
         self.assertIsNotNone(sx)
-        self.assertFalse(sx.is_eigenstate_of(op))
+        self.assertFalse(op.has_eigenstate(sx))
         self.assertEqual(op * sx, (op, sx))
 
     def test008_ket_is_eigenstate_when_explicitly_created_as_such(self):
@@ -219,7 +206,7 @@ class BaseStateTestCase(unittest.TestCase):
         op.add_eigenstate(sz, 0.5)
 
         self.assertIsNotNone(sz)
-        self.assertTrue(sz.is_eigenstate_of(op))
+        self.assertTrue(op.has_eigenstate(sz))
         self.assertEqual(op * sz, (0.5, sz))
 
     def test009_ket_is_eigenstate_when_explicitly_created_as_such_operator_none(self):
@@ -227,7 +214,7 @@ class BaseStateTestCase(unittest.TestCase):
         sz = op.add_eigenstate("+z", 0.5)
 
         self.assertIsNotNone(sz)
-        self.assertTrue(sz.is_eigenstate_of(op))
+        self.assertTrue(op.has_eigenstate(sz))
         self.assertEqual(op * sz, (0.5, sz))
 
     def test010_add_eigenstate_refuses_what_is_not_a_state(self):
@@ -259,7 +246,10 @@ class BaseStateTestCase(unittest.TestCase):
         op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
         e1, e2 = op.eigenstates
         state = Superposition("ѱ", states={e1: 1, e2: 1})
-        counter = state.measure(op, k=10)
+
+        k = 100
+        counter = state.measure(op, k=k)
+        print(f"\n{k} measurements of operator {op}")
         for s, c in counter.items():
             print(f"{s} : {c}")
 
