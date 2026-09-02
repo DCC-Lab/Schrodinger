@@ -5,6 +5,7 @@ from enum import StrEnum
 import math
 from collections import Counter
 import weakref
+import numbers
 
 
 class Ket:
@@ -23,22 +24,71 @@ class Ket:
     def __hash__(self):
         return hash(self.label)
 
-    def __rmul__(self, bra):
-        if not isinstance(bra, Bra):
-            raise ValueError("Only bra and kets can be multiplied")
+    def __rmul__(self, lhs):
+        """
+        We handle : 1. Bra * Ket
+                    2. float * Ket
+                    3. Operator * (eigen) Ket
+                    4. Operator * (any other) Ket
 
-        if bra.label == self.label:
-            return 1
-        else:
-            return (bra, self)
+        """
+        if isinstance(lhs, Bra):
+            if lhs.label == self.label:
+                return 1  # always normalized
+            else:
+                if self.is_orthogonal_to(lhs):
+                    return 0
+                else:
+                    return (lhs, self)
+        elif isinstance(lhs, numbers.Number):
+            return (lhs, self)
+        elif isinstance(lhs, Operator):
+            if lhs.has_eigenstate(self):
+                return (lhs.eigenstates[self], self)
+            else:
+                return (lhs, self)
+
+        return None
+
+    def is_orthogonal_to(self, other_state):
+        for op in Operator.all:
+            if op.has_eigenstate(self) and op.has_eigenstate(other_state):
+                return True
+
+        return False
 
 
 State = Ket
 
 
 class Bra(State):
+    def __init__(self, state_or_label):
+        label = state_or_label
+        if isinstance(state_or_label, Ket):
+            label = state_or_label.label
+
+        super().__init__(label=label)
+
     def __str__(self):
         return f"⟨ {self.label} |"
+
+    def __mul__(self, rhs):
+        if isinstance(rhs, Ket):
+            if rhs.label == self.label:
+                return 1  # always normalized
+            else:
+                if self.is_orthogonal_to(rhs):
+                    return 0
+                else:
+                    return (self, rhs)
+        elif isinstance(rhs, tuple):
+            coeff_or_operator, ket = rhs
+            if isinstance(coeff_or_operator, numbers.Number) and isinstance(ket, Ket):
+                return coeff_or_operator * (self * ket)
+            elif isinstance(coeff_or_operator, Operator) and isinstance(ket, Ket):
+                return (self * coeff_or_operator) * ket
+
+        return None
 
 
 class Superposition(State):
@@ -172,16 +222,32 @@ class BaseStateTestCase(unittest.TestCase):
         ket = Ket("+")
         self.assertEqual(str(ket), "| + 〉")
 
-    def test005_bra_ket_product(self):
+    def test005_bra_ket_product_same_state(self):
         bra = Bra("+")
         ket = Ket("+")
         self.assertEqual(bra * ket, 1)
 
-    # def test005_bra_ket_product(self):
-    #     bra = Bra(State("+"))
-    #     ket = Ket(State("-"))
-    #     with self.assertRaises(ValueError):
-    #         bra * ket
+    def test0051_bra_ket_product_orthogonal_states(self):
+        op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
+        (e1, e2) = op.eigenstates
+
+        bra = Bra(e1)
+        ket = e2
+
+        self.assertTrue(isinstance(bra, State))
+        self.assertTrue(isinstance(ket, State))
+
+        self.assertEqual(bra * ket, 0)
+
+    def test0051_bra_ket_product_any_states(self):
+        bra = Bra("+")
+        ket = Ket("-")
+        self.assertEqual(bra * ket, (bra, ket))
+
+    def test0052_bra_ket_product_coeff_with_state(self):
+        bra = Bra("+")
+        ket = Ket("-")
+        self.assertEqual(bra * (1, ket), (bra, ket))
 
     def test006_operator(self):
         op = Operator("Sz")
@@ -235,6 +301,17 @@ class BaseStateTestCase(unittest.TestCase):
             op.add_eigenstate("+z", 99)
         self.assertEqual(op.eigens[State("+z")], 0.5)
 
+    def test0052_scalar_on_ket(self):
+        op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
+        (e1, e2) = op.eigenstates
+        self.assertEqual(0.25 * e1, (0.25, e1))
+
+    def test0052_operator_on_ket(self):
+        op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
+        (e1, e2) = op.eigenstates
+        self.assertEqual(op * e1, (0.5, e1))
+        self.assertEqual(op * e2, (-0.5, e2))
+
     def test013_superposition(self):
         op = Operator("Sz", eigens={"+z": 0.5, "-z": -0.5})
         e1, e2 = op.eigenstates
@@ -255,4 +332,5 @@ class BaseStateTestCase(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    # unittest.main(defaultTest=["BaseStateTestCase.test005_bra_ket_product"])
     unittest.main()
