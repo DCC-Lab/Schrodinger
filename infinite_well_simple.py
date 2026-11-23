@@ -49,9 +49,26 @@ H = -K * D2
 # réelles et triées de la plus basse à la plus haute.
 energies, states = np.linalg.eigh(H)
 
-# Chaque colonne states[:, n] est une fonction d'onde. eigh() normalise le
-# vecteur pour que somme |psi|^2 = 1, mais on veut que l'intégrale de
-# |psi|^2 dx = 1.
+# Ce que donne eigh : chaque vecteur propre v est de norme 1 au sens des vecteurs,
+#
+# Σᵢ |vᵢ|² = 1
+#
+# Ce qu'on veut : une fonction d'onde normalisée au sens des fonctions,
+#
+# ∫ |ψ(x)|² dx = 1
+#
+# Sur la grille, l'intégrale devient une somme de Riemann :
+#
+# ∫ |ψ(x)|² dx ≈ Σᵢ |ψᵢ|² Δx
+#
+# Le facteur : un vecteur propre multiplié par une constante reste un vecteur propre, donc on pose ψ = c v et on cherche
+# c :
+#
+# Σᵢ |c vᵢ|² Δx = c² Δx Σᵢ |vᵢ|² = c² Δx = 1  ⇒  c = 1/√Δx
+#
+# D'où states = states / np.sqrt(dx).
+#
+
 states = states / np.sqrt(dx)
 
 # Comparaison avec la solution analytique E_n = n^2 pi^2 hbar^2 / (2 m a^2)

@@ -52,7 +52,25 @@ H = -K * D2 + np.diag(V)
 # H est réelle et symétrique, donc eigh() donne des énergies réelles et triées.
 energies, states = np.linalg.eigh(H)
 
-# On normalise pour que l'intégrale de |psi|^2 dx = 1
+# Ce que donne eigh : chaque vecteur propre v est de norme 1 au sens des vecteurs,
+#
+# Σᵢ |vᵢ|² = 1
+#
+# Ce qu'on veut : une fonction d'onde normalisée au sens des fonctions,
+#
+# ∫ |ψ(x)|² dx = 1
+#
+# Sur la grille, l'intégrale devient une somme de Riemann :
+#
+# ∫ |ψ(x)|² dx ≈ Σᵢ |ψᵢ|² Δx
+#
+# Le facteur : un vecteur propre multiplié par une constante reste un vecteur propre, donc on pose ψ = c v et on cherche
+# c :
+#
+# Σᵢ |c vᵢ|² Δx = c² Δx Σᵢ |vᵢ|² = c² Δx = 1  ⇒  c = 1/√Δx
+#
+# D'où states = states / np.sqrt(dx).
+#
 states = states / np.sqrt(dx)
 
 # Comparaison avec la solution analytique E_n = hbar omega (n + 1/2),
