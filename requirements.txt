@@ -1,4 +1,4 @@
-findiff>=0.10.0
+findiff>=0.13.0
 matplotlib>=3.7.1
 multiprocess>=0.70.14
 numpy>=1.24.2

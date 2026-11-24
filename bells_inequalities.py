@@ -58,9 +58,9 @@ def model_epr():
 	"""
 	We can try any populations, the most correlation will always be 4/9
 	"""
-	states_Ni = np.array([1,1,1,1,1,1,1,1]) # equal populations
+	# states_Ni = np.array([1,1,1,1,1,1,1,1]) # equal populations
 	# states_Ni = np.array([0,1,0,0,0,0,0,0]) 
-	# states_Ni = choose_random_populations()
+	states_Ni = choose_random_populations()
 
 	states_prob = states_Ni / np.sum(states_Ni)
 	for _ in range(N):
@@ -206,3 +206,8 @@ if __name__ == "__main__":
 	model_epr()
 	model_qm()
 
+	print("\n\n")
+	print(f"Experimental validation")
+	print(f"=========================")
+	print("Only an experiment can discrimiate the two possiblities.")
+	print("Lab measurements show that the correlation (i.e. measuring the same spin for both) is close to 50%), therefore QM is correct, EPR is incorrect.")
