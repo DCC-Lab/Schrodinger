@@ -210,6 +210,23 @@ class Potential(Operator):
                 a, b, vo
             ),
         )
+    
+    @classmethod
+    def periodic_wells(cls, a, b, vo):
+        """Creates periodic potential wells of width a, separated by b and depth vo"""
+        x = Wavefunction.x
+        v = np.zeros_like(x)
+
+        L = a + b  # period length
+
+        for i, xi in enumerate(x):
+            pos = (xi % L + L) % L
+            if pos <= a:
+                v[i] = abs(vo)
+            else:
+                v[i] = 0
+                
+        return Potential(v, label=f"Periodic wells: a={a}, b={b}, V0={vo}")
 
     @classmethod
     def finite_barrier(cls, a, vo):
@@ -483,6 +500,7 @@ if __name__ == "__main__":
         (np.linspace(-20, 20, 1001), lambda: Potential.finite_barrier(a=4, vo=1)),
         (np.linspace(-20, 20, 1001), lambda: Potential.harmonic_well(omega=0.5)),
         (np.linspace(-20, 20, 1001), lambda: Potential.harmonic_halfwell(omega=0.5)),
+        (np.linspace(-120,120,2001), lambda: Potential.periodic_wells(a=5, b=15, vo=1.5)),
     ]
 
     for x, make_potential in examples:
