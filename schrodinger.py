@@ -469,6 +469,30 @@ def infrared_qw_well_laser_at_10_6():
 
 if __name__ == "__main__":
     # infrared_qw_well_laser_at_10_6()
-    Wavefunction.x = np.linspace(-60, 60, 501)
-    h = Hamiltonian(Potential.infinite_well(a=30))
-    h.show_eigenstates(which=[0, 1, 2])
+
+    # Walk through every potential, one figure each: close the window to see
+    # the next one. The grid is set before building each potential, because
+    # Potential and Hamiltonian both read Wavefunction.x when they are created.
+    examples = [
+        (np.linspace(-20, 20, 501), lambda: Potential.infinite_well(a=10)),
+        (np.linspace(-60, 60, 1201), lambda: Potential.finite_well(a=30, vo=3)),
+        (
+            np.linspace(-30, 30, 1001),
+            lambda: Potential.two_finite_wells(a=10, b=6, vo=3),
+        ),
+        (np.linspace(-20, 20, 1001), lambda: Potential.finite_barrier(a=4, vo=1)),
+        (np.linspace(-20, 20, 1001), lambda: Potential.harmonic_well(omega=0.5)),
+        (np.linspace(-20, 20, 1001), lambda: Potential.harmonic_halfwell(omega=0.5)),
+    ]
+
+    for x, make_potential in examples:
+        Wavefunction.x = x
+        potential = make_potential()
+        print(potential.label)
+        try:
+            h = Hamiltonian(potential)
+            h.show_eigenstates(which=[0, 1, 2])
+        except Exception as err:
+            # eigs() can fail to converge, so we report it and go on to the next
+            # potential instead of stopping the whole tour.
+            print("  No eigenstates for {0} [{1}]".format(potential.label, err))
